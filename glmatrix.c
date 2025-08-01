@@ -141,6 +141,7 @@ typedef struct {
   int spin_speed;         /* Rotate all spinners every this-many frames */
   int spin_tick;          /* frame counter */
 
+  float brightness;
   int wave_position;	  /* Waves of brightness wash down the strip. */
   int wave_speed;	  /* every this-many frames. */
   int wave_tick;	  /* frame counter. */
@@ -239,7 +240,7 @@ reset_strip (ModeInfo *mi, strip *s)
   s->dz = (BELLRAND(0.02) * speed);
 
   s->spinner_speed = (BELLRAND(0.3) * speed);
-
+  s->brightness = 1.0;
   s->spin_speed = (int) BELLRAND(2.0 / speed) + 1;
   s->spin_tick  = 0;
 
@@ -306,20 +307,34 @@ tick_strip (ModeInfo *mi, strip *s)
     }*/
 
   s->spinner_y += s->spinner_speed;
+
+
+  if (s->spinner_y >= GRID_SIZE * 0.5)
+    {
+	 /*s->wave_position = 0;*/
+	/* s->wave_speed = 0;*/
+	s->brightness -= 0.002;
+    }
+
   if (s->spinner_y >= GRID_SIZE)
     {
-      if (s->erasing_p)
-        {
-          reset_strip (mi, s);
-          return;
-        }
+	 s->spinner_y = GRID_SIZE;
+	 s->spinner_speed -= 0.01;
+    }
+
+  if (s->spinner_speed < 0)	
+	{
+		reset_strip (mi, s);
+		return;
+	}
+
    /*   else
         {
           s->erasing_p = True;
           s->spinner_y = 0;
           s->spinner_speed /= 1; */ /* erase it slower than we drew it */
       /*  }*/
-    }
+    /*}*/
 
   /* Spin the spinners. */
   s->spin_tick++;
@@ -465,14 +480,14 @@ draw_strip (ModeInfo *mi, strip *s)
         {
           GLfloat brightness;
           if (!do_waves)
-            brightness = 1.0;
+            brightness = s->brightness;
           else
             {
               int j = WAVE_SIZE - ((i + (GRID_SIZE - s->wave_position))
                                    % WAVE_SIZE);
               brightness = mp->brightness_ramp[j];
             }
-
+		brightness *= s->brightness;
           draw_glyph (mi, g, s->highlight[i],
 		      s->x, s->y - i, s->z, brightness);
         }
