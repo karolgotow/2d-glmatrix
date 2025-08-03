@@ -94,10 +94,10 @@ static const unsigned char char_map[256] = {
 
 /* #define DEBUG */
 
-#define GRID_SIZE  100     /* width and height of the arena */
+#define GRID_SIZE  70     /* width and height of the arena */
 #define GRID_DEPTH 1     /* depth of the arena */
 #define WAVE_SIZE  22     /* periodicity of color (brightness) waves */
-#define SPLASH_RATIO 0.99  /* ratio of GRID_DEPTH where chars hit the screen */
+#define SPLASH_RATIO 0.7  /* ratio of GRID_DEPTH where chars hit the screen */
 
 static const struct { GLfloat x, y; } nice_views[] = {
   {  0,     0 },
@@ -229,6 +229,7 @@ reset_strip (ModeInfo *mi, strip *s)
   Bool time_displayed_p = False;  /* never display time twice in one strip */
 
   memset (s, 0, sizeof(*s));
+
   s->x = (GLfloat) (floor(frand(GRID_SIZE)) - (GRID_SIZE/2));
   s->y = (GLfloat) (GRID_SIZE/2 + BELLRAND(0.5));      /* shift top slightly */
   s->z = 1;/*(GLfloat) (GRID_DEPTH * 0.2) - frand (GRID_DEPTH * 0.7);
@@ -240,9 +241,31 @@ reset_strip (ModeInfo *mi, strip *s)
   s->dz = (BELLRAND(0.02) * speed);
 
   s->spinner_speed = (BELLRAND(0.3) * speed);
-  s->brightness = 1.0;
-  s->spin_speed = (int) BELLRAND(2.0 / speed) + 1;
+  s->brightness = 0.42;
+  s->spin_speed = (int) BELLRAND(12.0 /speed) + 1;
   s->spin_tick  = 0;
+
+
+
+
+/* hide doubled strip*/
+  for (i = 0; i < mp->nstrips; i++)
+    {
+      strip *x_s = &mp->strips[i];
+     	if( s->x == x_s->x && ! (x_s->y == s->y) && ! (x_s->y == GRID_SIZE-5) && x_s->brightness > s->brightness / 2 )
+			{
+				s->brightness = 0;
+				s->y = GRID_SIZE-5;
+			}
+    }
+
+
+
+
+
+
+
+
 
   s->wave_position = 0;
   s->wave_speed = (int) BELLRAND(3.0 / speed) + 1;
@@ -309,11 +332,11 @@ tick_strip (ModeInfo *mi, strip *s)
   s->spinner_y += s->spinner_speed;
 
 
-  if (s->spinner_y >= GRID_SIZE * 0.5)
+  if (s->spinner_y >= GRID_SIZE * 0.9)
     {
 	 /*s->wave_position = 0;*/
 	/* s->wave_speed = 0;*/
-	s->brightness -= 0.002;
+	s->brightness -= 0.007 * speed;
     }
 
   if (s->spinner_y >= GRID_SIZE)
@@ -322,7 +345,7 @@ tick_strip (ModeInfo *mi, strip *s)
 	 s->spinner_speed -= 0.01;
     }
 
-  if (s->spinner_speed < 0)	
+  if (s->spinner_speed < 0 && s->brightness <= 0)	
 	{
 		reset_strip (mi, s);
 		return;
@@ -338,7 +361,7 @@ tick_strip (ModeInfo *mi, strip *s)
 
   /* Spin the spinners. */
   s->spin_tick++;
-  if (s->spin_tick > s->spin_speed)
+  if (s->spin_tick > s->spin_speed )
     {
       s->spin_tick = 0;
       s->spinner_glyph = - (mp->glyph_map[(random() % mp->nglyphs)] + 1);
@@ -377,12 +400,16 @@ draw_glyph (ModeInfo *mi, int glyph, Bool highlight,
   GLfloat cx = 0, cy = 0;
   GLfloat S = 1;
   Bool spinner_p = (glyph < 0);
+ GLfloat r, g, b, a;
 
   if (glyph == 0) abort();
   if (glyph < 0) glyph = -glyph;
 
   if (spinner_p)
-    brightness *= 1.5;
+    {brightness *= 3.5;
+    r = g = b = 1;}
+   else
+    {r = b = 0, g = 1;}
 
   if (!do_texture)
     {
@@ -399,24 +426,19 @@ draw_glyph (ModeInfo *mi, int glyph, Bool highlight,
       cy = (mp->real_char_rows - ccy - 1) * h;
 
       if (do_fog)
-        {
-          GLfloat depth;
-          depth = (z / GRID_DEPTH) + 0.5;  /* z ratio from back/front      */
-          depth = 0.2 + (depth * 0.8);     /* scale to range [0.2 - 1.0]   */
-          brightness *= depth;             /* so no row goes all black.    */
-        }
+	{
+	  GLfloat depth;
+	  depth = (z / GRID_DEPTH) + 0.5;  /* z ratio from back/front      */
+	  depth = 0.2 + (depth * 0.8);     /* scale to range [0.2 - 1.0]   */
+	  brightness *= depth;             /* so no row goes all black.    */
+	}
     }
 
-  {
-    GLfloat r, g, b, a;
+  
+   
 
     if (highlight)
       brightness *= 2;
-
-    if (!do_texture && !spinner_p)
-      r = b = 0, g = 1;
-    else
-      r = g = b = 1;
 
     a = brightness;
 
@@ -437,7 +459,7 @@ draw_glyph (ModeInfo *mi, int glyph, Bool highlight,
       }
 
     glColor4f (r,g,b,a);
-  }
+  
 
   glBegin (wire ? GL_LINE_LOOP : GL_QUADS);
   glNormal3f (0, 0, 1);
@@ -495,7 +517,7 @@ draw_strip (ModeInfo *mi, strip *s)
 
   if (!s->erasing_p)
     draw_glyph (mi, s->spinner_glyph, False,
-		s->x, s->y - s->spinner_y, s->z, 1.0);
+		s->x, floor(s->y - s->spinner_y), s->z, 1.0 * s->brightness);
 }
 
 
@@ -786,7 +808,9 @@ load_textures (ModeInfo *mi, Bool flip_p)
           unsigned char g = (p >> gpos) & 0xFF;
           unsigned char b = (p >> bpos) & 0xFF;
           unsigned char a = g;
+	  r = 0xFF;
           g = 0xFF;
+	  b = 0xFF;
           p = (r << rpos) | (g << gpos) | (b << bpos) | (a << apos);
           XPutPixel (xi, x, y, p);
         }
