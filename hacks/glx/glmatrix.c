@@ -15,7 +15,6 @@
  * for a simulation of what the computer monitors actually *in* the
  * movie did.
  */
-
 #define DEFAULTS	"*delay:	30000         \n" \
 			"*showFPS:      False         \n" \
 			"*wireframe:    False         \n" \
@@ -27,9 +26,9 @@
 #undef BELLRAND
 #define BELLRAND(n) ((frand((n)) + frand((n)) + frand((n))) / 3)
 
+#include <stdio.h>
 #include "xlockmore.h"
 #include "ximage-loader.h"
-
 #include "images/gen/matrix3_png.h"
 
 #ifdef USE_GL /* whole file */
@@ -241,7 +240,9 @@ reset_strip (ModeInfo *mi, strip *s)
   int i;
   int k;
   int m;
+  int charx;
   char *fgets_return;
+ /* char *fgets_return;*/
   Bool time_displayed_p = False;  /* never display time twice in one strip */
 
   memset (s, 0, sizeof(*s));
@@ -288,44 +289,43 @@ reset_strip (ModeInfo *mi, strip *s)
   s->wave_speed = (int) BELLRAND(8.0 / speed)/2 + 1;
   s->wave_tick  = 0;
 
+if(text_file == NULL)
+{
+	text_file = fopen("./glmatrix.txt", "r");
+}
 
-
-
-
-
-
-
-
+/*its specially made if coz it checks if file got loaded properly*/
 if(text_file != NULL)
 			{	
 			m=0;
 			time_displayed_p = False;
 
-				fgets_return = fgets(s->buff, GRID_SIZE, text_file);
+				 fgets_return = fgets(s->buff, GRID_SIZE, text_file);
+				 /*printf("%s\n",fgets_return);*/
+				 /*printf("%d\n",fgetc(text_file));*/ /*debug for finding out -1 case below tho i knew it without it*/
+				 charx = fgetc(text_file);
+				 ungetc(charx, text_file);
 
-	   			 if(fgetc(text_file) == EOF)
-	      			 	{
-						rewind(text_file);
-						text_file = fopen("./glmatrix.txt", "r");
+	   			 if( charx > 126 || charx < 9 || fgets_return == NULL)/*normla letters + spaces and tabulators etc.*/
+	      			 {
+						/*rewind(text_file);*/
+						text_file = NULL;
 					}
-				/* render time into the strip */
-				for (k = 0; k < 77 && m < GRID_SIZE; k++, m++)
-				  {
-				    if(s->buff[k] != 0)
-					{
-				    		s->glyphs[m] = char_map [((unsigned char *) s->buff)[k]] + 1;
-					}
-				    else
-					{
-						s->glyphs[m] = 1; /* 1 means empty char like space*/ /*random() % 7 ? mp->glyph_map[(random() % mp->nglyphs)] + 1 : 0;*/
-					}
-				  }
-
+				else 
+				{
+					for (k = 0; k < 77 && m < GRID_SIZE; k++, m++)
+					  {
+						if(s->buff[k] > 0 && s->buff[k] != EOF)
+						{
+								s->glyphs[m] = char_map [((unsigned char *) s->buff)[k]] + 1;
+						}
+						else
+						{
+							s->glyphs[m] = random() % 7 ? mp->glyph_map[(random() % mp->nglyphs)] + 1 : 0; /* 1 means empty char like space*/ /*random() % 7 ? mp->glyph_map[(random() % mp->nglyphs)] + 1 : 0;*/
+						}
+					  }
+				}
 			}
-else
-{
-	text_file = fopen("./glmatrix.txt", "r");
-}
 
 
 
@@ -339,32 +339,32 @@ else
 		(i < GRID_SIZE-5) &&   /* display approx. once per 5 strips */
 		!(random() % ((GRID_SIZE-5)*5)))
 	      {
-		
-		int j;
-		char text[80];
-		time_t now = time ((time_t *) 0);
-		struct tm *tm = localtime (&now);
-		strftime (text, sizeof(text)-1, timefmt, tm);
+			
+			int j;
+			char text[80];
+			time_t now = time ((time_t *) 0);
+			struct tm *tm = localtime (&now);
+			strftime (text, sizeof(text)-1, timefmt, tm);
 
-		/* render time into the strip */
-		for (j = 0; j < strlen(text) && i < GRID_SIZE; j++, i++)
-		  {
-		    s->glyphs[i] = char_map [((unsigned char *) text)[j]] + 1;
-		    s->highlight[i] = True;
-		  }
+			/* render time into the strip */
+			for (j = 0; j < strlen(text) && i < GRID_SIZE; j++, i++)
+			  {
+				s->glyphs[i] = char_map [((unsigned char *) text)[j]] + 1;
+				s->highlight[i] = True;
+			  }
 
-		time_displayed_p = True;	
+			time_displayed_p = True;	
 	      }
 	    else if (text_file == NULL)
 	      {
-		int draw_p = (random() % 7);
-		int spin_p = (draw_p && !(random() % 20));
-		int g = (draw_p
-			 ? mp->glyph_map[(random() % mp->nglyphs)] + 1
-			 : 0);
-		if (spin_p) g = -g;
-		s->glyphs[i] = g;
-		s->highlight[i] = False;
+			int draw_p = (random() % 7);
+			int spin_p = (draw_p && !(random() % 20));
+			int g = (draw_p
+				 ? mp->glyph_map[(random() % mp->nglyphs)] + 1
+				 : 0);
+			if (spin_p) g = -g;
+			s->glyphs[i] = g;
+			s->highlight[i] = False;
 	      }
 	}
   s->spinner_glyph = - (mp->glyph_map[(random() % mp->nglyphs)] + 1);
@@ -416,7 +416,10 @@ tick_strip (ModeInfo *mi, strip *s)
 
 
     }
-
+  if (s->spinner_y >= GRID_SIZE*3)/*3 instead of 4 fixex semitransaprent solid green strips showing when strip goes out of boundary*/
+	{
+		s->brightness -= 0.001;
+	}
   if (s->cleaner_y >= GRID_SIZE && s->spinner_y >= GRID_SIZE*4/*&& s->brightness <= 0*/)	
 	{
 		reset_strip (mi, s);
@@ -1038,6 +1041,7 @@ init_matrix (ModeInfo *mi)
       j *= (M_PI / 2);       /* j ranges from 0.0 - PI/2  */
       j = sin (j);           /* j ranges from 0.0 - 1.0   */
       j = 0.2 + (j * 0.8);   /* j ranges from 0.2 - 1.0   */
+	if(j > 0.749){j = 0.749;}/*fixes solid green strips*/
       mp->brightness_ramp[i] = j;
       /* printf("%2d %8.2f\n", i, j); */
     }
