@@ -188,6 +188,7 @@ static Bool do_texture;
 static char *mode_str;
 
 int text_file_lines=0;
+char buffer[1000];
 
 static XrmOptionDescRec opts[] = {
   { "-speed",       ".speed",     XrmoptionSepArg, 0 },
@@ -291,7 +292,13 @@ reset_strip (ModeInfo *mi, strip *s)
 
 if(text_file == NULL)
 {
+	/*printf("text_file is NULL\n");*/
 	text_file = fopen("./glmatrix.txt", "r");
+	
+    /*if (getcwd(buffer, sizeof(buffer)) != NULL) {
+        printf("%s\n", buffer);
+    }*/
+
 }
 
 /*its specially made if coz it checks if file got loaded properly*/
@@ -309,6 +316,7 @@ if(text_file != NULL)
 	   			 if( charx > 126 || charx < 9 || fgets_return == NULL)/*normla letters + spaces and tabulators etc.*/
 	      			 {
 						/*rewind(text_file);*/
+						fclose(text_file);/*release of file descriptor*/
 						text_file = NULL;
 					}
 				else 
